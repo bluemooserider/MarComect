@@ -5,6 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
+# --- CONFIGURATION ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'strategy.db')
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
@@ -12,8 +13,9 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'marcomect_strategy_2026'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'marcomect_prod_secret_2026')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 db = SQLAlchemy(app)
 
 # --- MODELS ---
@@ -46,13 +48,15 @@ class MasterCampaign(db.Model):
     owner = db.relationship('User', backref='owned_campaigns')
     sprints = db.relationship('Sprint', backref='campaign', cascade="all, delete-orphan")
     def get_progress(self):
-        tasks = [t for s in self.sprints for t in s.tasks]; return int((sum(1 for t in tasks if t.is_completed) / len(tasks)) * 100) if tasks else 0
+        tasks = [t for s in self.sprints for t in s.tasks]
+        return int((sum(1 for t in tasks if t.is_completed) / len(tasks)) * 100) if tasks else 0
 
 class Sprint(db.Model):
     id = db.Column(db.Integer, primary_key=True); name = db.Column(db.String(100), nullable=False)
     campaign_id = db.Column(db.Integer, db.ForeignKey('master_campaign.id'), nullable=False)
     tasks = db.relationship('Task', backref='sprint', cascade="all, delete-orphan")
-    def get_progress(self): return int((sum(1 for t in self.tasks if t.is_completed) / len(self.tasks)) * 100) if self.tasks else 0
+    def get_progress(self):
+        return int((sum(1 for t in self.tasks if t.is_completed) / len(self.tasks)) * 100) if self.tasks else 0
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True); sprint_id = db.Column(db.Integer, db.ForeignKey('sprint.id'), nullable=False)
@@ -64,12 +68,25 @@ class Task(db.Model):
     files = db.relationship('TaskFile', backref='task', cascade="all, delete-orphan")
 
 class TaskLink(db.Model):
-    id = db.Column(db.Integer, primary_key=True); task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False); url = db.Column(db.String(500), nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
 
 class TaskFile(db.Model):
-    id = db.Column(db.Integer, primary_key=True); task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False); filename = db.Column(db.String(255)); filepath = db.Column(db.String(500))
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+    filename = db.Column(db.String(255))
+    filepath = db.Column(db.String(500))
 
-# --- AUTH & CONTEXT ---
+# --- AUTO-INITIALIZE FOR RENDER ---
+with app.app_context():
+    if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
+    db.create_all()
+    if not User.query.filter_by(username='admin').first():
+        db.session.add(User(username='admin', password_hash=generate_password_hash('admin'), role='admin'))
+        db.session.commit()
+
+# --- CONTEXT PROCESSOR ---
 @app.context_processor
 def inject_notifications():
     if 'user_id' in session:
@@ -79,12 +96,11 @@ def inject_notifications():
             return dict(notification_count=len(pending), my_pending_tasks=pending)
     return dict(notification_count=0, my_pending_tasks=[])
 
-def admin_required(f):
-    @functools.wraps(f)
-    def decorated(**kwargs):
-        if session.get('role') != 'admin': return jsonify({'success': False}), 403
-        return f(**kwargs)
-    return decorated
+# --- ROUTES ---
+@app.route('/')
+def index():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    return render_template('index.html', campaigns=MasterCampaign.query.all(), users=User.query.all())
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -98,12 +114,11 @@ def login():
 @app.route('/logout')
 def logout(): session.clear(); return redirect(url_for('login'))
 
-@app.route('/')
-def index():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    return render_template('index.html', campaigns=MasterCampaign.query.all(), users=User.query.all())
+# --- API ENDPOINTS ---
+@app.route('/api/campaign/save', methods=['POST'])
+def save_campaign():
+    d = request.json; db.session.add(MasterCampaign(name=d['name'], owner_id=int(d['owner_id']))); db.session.commit(); return jsonify({'success': True})
 
-# --- STRATEGY API ---
 @app.route('/api/task/<int:task_id>')
 def get_task(task_id):
     t = db.session.get(Task, task_id)
@@ -126,7 +141,6 @@ def save_task():
 def toggle_task():
     t = db.session.get(Task, request.json['id']); t.is_completed = not t.is_completed; db.session.commit(); return jsonify({'success': True})
 
-# --- ASSETS API ---
 @app.route('/api/task/link/add', methods=['POST'])
 def add_link():
     d = request.json; db.session.add(TaskLink(task_id=d['task_id'], url=d['url'])); db.session.commit(); return jsonify({'success': True})
@@ -138,7 +152,6 @@ def del_link():
 @app.route('/api/task/file/upload', methods=['POST'])
 def upload_file():
     f = request.files['file']; tid = request.form['task_id']; fn = secure_filename(f.filename); fp = f"{int(time.time())}_{fn}"
-    if not os.path.exists(UPLOAD_FOLDER): os.makedirs(UPLOAD_FOLDER)
     f.save(os.path.join(UPLOAD_FOLDER, fp)); db.session.add(TaskFile(task_id=tid, filename=fn, filepath=fp)); db.session.commit(); return jsonify({'success': True})
 
 @app.route('/task/file/download/<int:file_id>')
@@ -149,26 +162,6 @@ def download_file(file_id):
 def del_file():
     tf = db.session.get(TaskFile, request.json['id']); db.session.delete(tf); db.session.commit(); return jsonify({'success': True})
 
-# --- ADMIN API ---
-@app.route('/api/user/add', methods=['POST'])
-@admin_required
-def add_user_api():
-    d = request.json; u = User(username=d['email'], email=d['email'], password_hash=generate_password_hash(d['password']), role=d.get('role', 'user'))
-    db.session.add(u); db.session.commit(); return jsonify({'success': True})
-
-@app.route('/api/group/save', methods=['POST'])
-@admin_required
-def save_group_api():
-    d = request.json; g = db.session.get(Group, d['id']) if d.get('id') else Group(); g.name = d['name']
-    if 'user_ids' in d: g.users = User.query.filter(User.id.in_([int(x) for x in d['user_ids']])).all()
-    if not d.get('id'): db.session.add(g)
-    db.session.commit(); return jsonify({'success': True})
-
-@app.route('/admin/backup')
-@admin_required
-def admin_backup_download(): return send_file(DB_PATH, as_attachment=True, download_name="backup.db")
-
-# --- GANTT & DASHBOARD DATA ---
 @app.route('/api/gantt_data/<source_type>/<int:source_id>')
 def api_gantt_data(source_type, source_id):
     rows = []
@@ -180,19 +173,23 @@ def api_gantt_data(source_type, source_id):
                 rows.append([f"CAMP_{c.id}", c.name, "Campaign", s.isoformat(), e.isoformat(), None, c.get_progress(), None])
     elif source_type == "campaign":
         c = db.session.get(MasterCampaign, source_id)
-        for s in c.sprints:
+        for s in (c.sprints if c else []):
             if s.tasks:
                 st, en = min(t.start_date for t in s.tasks), max(t.start_date + timedelta(days=t.duration_days) for t in s.tasks)
                 rows.append([f"SPRINT_{s.id}", s.name, "Sprint", st.isoformat(), en.isoformat(), None, s.get_progress(), None])
     elif source_type == "sprint":
         s = db.session.get(Sprint, source_id)
-        for t in s.tasks:
+        for t in (s.tasks if s else []):
             rows.append([f"TASK_{t.id}", t.name, "Action", t.start_date.isoformat(), (t.start_date + timedelta(days=t.duration_days)).isoformat(), None, 100 if t.is_completed else 0, None])
     return jsonify({'tasks': rows})
 
 @app.route('/api/sprints/<int:campaign_id>')
 def get_sprints(campaign_id):
     c = db.session.get(MasterCampaign, campaign_id); return jsonify([{'id': s.id, 'name': s.name, 'task_count': len(s.tasks), 'progress': s.get_progress()} for s in c.sprints])
+
+@app.route('/api/sprint/save', methods=['POST'])
+def save_sprint():
+    d = request.json; db.session.add(Sprint(campaign_id=d['campaign_id'], name=d['name'])); db.session.commit(); return jsonify({'success': True})
 
 @app.route('/api/tasks/<int:sprint_id>')
 def get_tasks(sprint_id):
@@ -207,10 +204,8 @@ def api_get_users(): return jsonify([{'id': u.id, 'display_name': u.display_name
 @app.route('/api/groups')
 def api_get_groups(): return jsonify([{'id': g.id, 'name': g.name} for g in Group.query.all()])
 
+@app.route('/admin/backup')
+def admin_backup_download(): return send_file(DB_PATH, as_attachment=True, download_name="strategy_backup.db")
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        if not User.query.filter_by(username='admin').first():
-            db.session.add(User(username='admin', password_hash=generate_password_hash('admin'), role='admin'))
-            db.session.commit()
     app.run(debug=True)

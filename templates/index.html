@@ -3,27 +3,26 @@
 <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 
 <style>
-    :root { --brand-primary: #4f46e5; }
     .progress-micro { height: 4px; background-color: #e2e8f0; border-radius: 10px; overflow: hidden; margin-top: 8px; }
     .progress-micro-bar { height: 100%; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
-    #gantt_chart_div { width: 100%; min-height: 400px; cursor: pointer; }
     .asset-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; }
+    #gantt_chart_div { width: 100%; min-height: 400px; cursor: pointer; }
 </style>
 
 <div class="row g-4">
     <div class="col-md-3">
         <div class="card border-0 shadow-sm p-3 bg-white" style="border-radius: 16px;">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-bold text-muted small m-0">STRATEGIES</h6>
+                <h6 class="fw-bold text-muted small m-0 uppercase">STRATEGIES</h6>
                 <div class="d-flex gap-2">
                     <button class="btn btn-outline-secondary btn-sm rounded-pill" onclick="openGanttModal('all', 0)"><i class="bi bi-calendar3"></i></button>
-                    <button class="btn btn-primary btn-sm rounded-circle" onclick="openCampaignModal()"><i class="bi bi-plus-lg"></i></button>
+                    <button class="btn btn-primary btn-sm rounded-circle shadow-sm" onclick="openCampaignModal()"><i class="bi bi-plus-lg"></i></button>
                 </div>
             </div>
             <div class="list-group list-group-flush">
                 {% for c in campaigns %}
                 <div class="list-group-item list-group-item-action border-0 rounded-3 mb-2 p-3 campaign-item" onclick="loadSprints({{ c.id }}, this)" style="cursor:pointer; background: #f8fafc;">
-                    <div class="fw-bold">{{ c.name }}</div>
+                    <div class="fw-bold text-dark">{{ c.name }}</div>
                     <div class="progress-micro"><div class="progress-micro-bar bg-primary" id="camp-prog-{{ c.id }}" style="width: {{ c.get_progress() }}%"></div></div>
                 </div>
                 {% endfor %}
@@ -34,7 +33,7 @@
     <div class="col-md-9">
         <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
             <div class="card-header bg-white border-0 py-4 px-4 d-flex justify-content-between align-items-center">
-                <h4 class="fw-bold m-0">Strategic Phases</h4>
+                <h4 class="fw-bold m-0 text-dark">Strategic Phases</h4>
                 <div id="campaign-actions" class="d-none">
                     <button class="btn btn-outline-info btn-sm rounded-pill me-2 px-3" onclick="openGanttModal('campaign', activeCampId)"><i class="bi bi-calendar3 me-2"></i>Phase Gantt</button>
                     <button class="btn btn-dark btn-sm rounded-pill px-3" onclick="openSprintModal()"><i class="bi bi-plus-lg me-2"></i>Add Phase</button>
@@ -42,10 +41,9 @@
             </div>
             <div class="card-body px-4 pb-4" id="sprint-grid"></div>
         </div>
-
         <div id="roadmap-panel" class="card border-0 shadow-sm d-none" style="border-radius: 16px; overflow: hidden;">
             <div class="card-header bg-primary text-white py-3 px-4 d-flex justify-content-between align-items-center border-0">
-                <h6 class="fw-bold m-0 uppercase small">Roadmap: <span id="active-sprint-name" class="fw-light"></span></h6>
+                <h6 class="fw-bold m-0 small uppercase">Roadmap: <span id="active-sprint-name" class="fw-light"></span></h6>
                 <div class="d-flex gap-2">
                     <button class="btn btn-light btn-sm fw-bold shadow-sm rounded-pill px-3" onclick="openGanttModal('sprint', activeSprintId)"><i class="bi bi-calendar3 me-2"></i>Roadmap Gantt</button>
                     <button class="btn btn-light btn-sm fw-bold shadow-sm rounded-pill px-3" onclick="openTaskModal()">+ Add Action</button>
@@ -56,7 +54,27 @@
     </div>
 </div>
 
-<div class="modal fade" id="gantt-modal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;"><div class="modal-body p-4"><div id="gantt_chart_div"></div></div></div></div></div>
+<div class="modal fade" id="campaign-modal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+        <div class="modal-body p-4">
+            <h5 class="fw-bold mb-3 text-primary">New Master Strategy</h5>
+            <form id="campaign-form">
+                <input type="text" id="c_name" class="form-control mb-3" placeholder="Strategy Title" required>
+                <select id="c_owner" class="form-select mb-3">
+                    {% for u in users %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary w-100">Save Strategy</button>
+            </form>
+        </div>
+    </div></div>
+</div>
+
+<div class="modal fade" id="sprint-modal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow" style="border-radius: 20px;"><div class="modal-body p-4">
+    <h5 class="fw-bold mb-3 text-primary">Add Roadmap Phase</h5>
+    <form id="sprint-form"><input type="text" id="s_name" class="form-control mb-3" placeholder="Phase Name" required><button type="submit" class="btn btn-primary w-100">Create Phase</button></form>
+    </div></div></div>
+</div>
 
 <div class="modal fade" id="task-modal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
@@ -66,33 +84,24 @@
                 <input type="hidden" id="t_id">
                 <div class="row g-3">
                     <div class="col-md-7">
-                        <input type="text" id="t_name" class="form-control mb-3 shadow-none" placeholder="Title" required>
+                        <input type="text" id="t_name" class="form-control mb-3 shadow-none" placeholder="Task Title" required>
                         <div class="row g-2 mb-3">
                             <div class="col"><label class="small fw-bold text-muted">START</label><input type="date" id="t_start" class="form-control shadow-none" required></div>
                             <div class="col"><label class="small fw-bold text-muted">DAYS</label><input type="number" id="t_dur" class="form-control shadow-none" value="1" required></div>
                         </div>
-                        <textarea id="t_comments" class="form-control mb-3 shadow-none" rows="3" placeholder="Strategy Notes"></textarea>
+                        <textarea id="t_comments" class="form-control mb-3 shadow-none" rows="3" placeholder="Strategic Notes"></textarea>
 
                         <div class="p-3 border rounded bg-light">
                             <label class="small fw-bold text-primary mb-2">RESOURCES & FILES</label>
-                            <div id="link-list" class="mb-2"></div>
-                            <div id="file-list" class="mb-3"></div>
-
-                            <div class="input-group input-group-sm mb-2">
-                                <input type="text" id="new-link" class="form-control" placeholder="Add URL...">
-                                <button class="btn btn-dark" type="button" onclick="addLink()">Link</button>
-                            </div>
-                            <div class="input-group input-group-sm">
-                                <input type="file" id="new-file" class="form-control">
-                                <button class="btn btn-dark" type="button" onclick="uploadFile()">Upload</button>
-                            </div>
+                            <div id="link-list" class="mb-2"></div><div id="file-list" class="mb-3"></div>
+                            <div class="input-group input-group-sm mb-2"><input type="text" id="new-link" class="form-control" placeholder="URL..."><button class="btn btn-dark" type="button" onclick="addLink()">Link</button></div>
+                            <div class="input-group input-group-sm"><input type="file" id="new-file" class="form-control"><button class="btn btn-dark" type="button" onclick="uploadFile()">Upload</button></div>
                         </div>
                     </div>
                     <div class="col-md-5 border-start">
                         <label class="small fw-bold text-primary mb-2">ASSIGNMENTS</label>
-                        <div id="modal-groups" class="mb-3 overflow-auto" style="max-height: 120px;"></div>
-                        <hr>
-                        <div id="modal-users" class="overflow-auto" style="max-height: 120px;"></div>
+                        <div id="modal-groups" class="mb-3 overflow-auto" style="max-height: 150px;"></div>
+                        <hr><div id="modal-users" class="overflow-auto" style="max-height: 150px;"></div>
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary w-100 mt-4 shadow-sm">Save Changes</button>
@@ -101,15 +110,33 @@
     </div></div>
 </div>
 
+<div class="modal fade" id="gantt-modal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;"><div class="modal-body p-4"><div id="gantt_chart_div" style="min-height: 400px; cursor:pointer;"></div></div></div></div></div>
+
 <script>
 let activeCampId = null, activeSprintId = null, allUsers = [], allGroups = [];
 google.charts.load('current', {'packages':['gantt']});
 
-// DASHBOARD LOADING
+// RE-INIT BOOTSTRAP COMPONENTS
+function openModal(id) {
+    const modalEl = document.getElementById(id);
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.show();
+}
+
+function openCampaignModal() {
+    document.getElementById('campaign-form').reset();
+    openModal('campaign-modal');
+}
+
+function openSprintModal() {
+    document.getElementById('sprint-form').reset();
+    openModal('sprint-modal');
+}
+
 function loadSprints(id, el) {
     activeCampId = id;
     document.querySelectorAll('.campaign-item').forEach(i => i.style.background = '#f8fafc');
-    el.style.background = '#e0e7ff';
+    el.style.background = '#eef2ff';
     document.getElementById('campaign-actions').classList.remove('d-none');
     fetchSprints();
 }
@@ -121,6 +148,7 @@ function fetchSprints() {
             h += `<div class="col-md-4"><div class="card p-3 border rounded-4 shadow-sm" style="cursor:pointer" onclick="loadTasks(${s.id}, '${s.name}')">
                 <h6 class="fw-bold m-0">${s.name}</h6>
                 <div class="progress-micro"><div class="progress-micro-bar bg-success" style="width: ${s.progress}%"></div></div>
+                <small class="text-muted small mt-1">${s.progress}% complete</small>
             </div></div>`;
         });
         document.getElementById('sprint-grid').innerHTML = h + '</div>';
@@ -143,7 +171,7 @@ function fetchTasks() {
                 <i class="bi ${icon} h5 me-4" style="cursor:pointer" onclick="toggleTask(${t.id})"></i>
                 <div class="flex-grow-1" onclick="openTaskModal(${t.id})" style="cursor:pointer">
                     <div class="fw-bold ${t.is_completed ? 'text-decoration-line-through opacity-50' : ''}">${t.name}</div>
-                    <small class="text-muted">${t.assignee_names}</small>
+                    <small class="text-muted"><i class="bi bi-people me-2"></i>${t.assignee_names}</small>
                 </div>
             </div>`;
         });
@@ -152,16 +180,8 @@ function fetchTasks() {
     });
 }
 
-// ASSET MANAGEMENT
-function renderLink(l) {
-    document.getElementById('link-list').innerHTML += `<div class="asset-item"><a href="${l.url}" target="_blank" class="text-truncate" style="max-width:80%">${l.url}</a><i class="bi bi-x text-danger" style="cursor:pointer" onclick="delLink(${l.id})"></i></div>`;
-}
-function renderFile(f) {
-    document.getElementById('file-list').innerHTML += `<div class="asset-item"><a href="/task/file/download/${f.id}">${f.filename}</a><i class="bi bi-x text-danger" style="cursor:pointer" onclick="delFile(${f.id})"></i></div>`;
-}
-
 function openTaskModal(tid = null) {
-    const f = document.getElementById('task-form'); f.reset();
+    document.getElementById('task-form').reset();
     document.getElementById('t_id').value = tid || '';
     document.getElementById('link-list').innerHTML = ''; document.getElementById('file-list').innerHTML = '';
     document.querySelectorAll('.g-chk, .u-chk').forEach(c => c.checked = false);
@@ -171,10 +191,11 @@ function openTaskModal(tid = null) {
             document.getElementById('t_dur').value = t.duration_days; document.getElementById('t_comments').value = t.comments;
             document.querySelectorAll('.g-chk').forEach(cb => { if(t.group_ids.includes(parseInt(cb.value))) cb.checked = true; });
             updateUserFilter(t.user_ids);
-            t.links.forEach(l => renderLink(l)); t.files.forEach(f => renderFile(f));
+            t.links.forEach(l => document.getElementById('link-list').innerHTML += `<div class="asset-item"><a href="${l.url}" target="_blank" class="text-truncate" style="max-width:85%">${l.url}</a><i class="bi bi-x text-danger" style="cursor:pointer" onclick="delLink(${l.id})"></i></div>`);
+            t.files.forEach(f => document.getElementById('file-list').innerHTML += `<div class="asset-item"><a href="/task/file/download/${f.id}">${f.filename}</a><i class="bi bi-x text-danger" style="cursor:pointer" onclick="delFile(${f.id})"></i></div>`);
         });
     }
-    new bootstrap.Modal(document.getElementById('task-modal')).show();
+    openModal('task-modal');
 }
 
 function addLink() {
@@ -194,9 +215,8 @@ function uploadFile() {
 function delLink(id) { fetch('/api/task/link/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id})}).then(() => openTaskModal(document.getElementById('t_id').value)); }
 function delFile(id) { fetch('/api/task/file/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id})}).then(() => openTaskModal(document.getElementById('t_id').value)); }
 
-// GANTT MODAL
 function openGanttModal(type, id) {
-    new bootstrap.Modal(document.getElementById('gantt-modal')).show();
+    openModal('gantt-modal');
     document.getElementById('gantt-modal').addEventListener('shown.bs.modal', function () {
         fetch(`/api/gantt_data/${type}/${id}`).then(r => r.json()).then(data => {
             if (!data.tasks.length) return;
@@ -221,7 +241,6 @@ function openGanttModal(type, id) {
     }, { once: true });
 }
 
-// UTILITIES
 function toggleTask(id) { fetch('/api/task/complete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id})}).then(() => { fetchTasks(); fetchSprints(); }); }
 function refreshCampaignProgress() { fetch('/api/progress/campaigns').then(r => r.json()).then(d => { for(let id in d) { let el = document.getElementById(`camp-prog-${id}`); if(el) el.style.width = d[id] + '%'; } }); }
 
@@ -235,6 +254,14 @@ function updateUserFilter(selectedUsers = []) {
 }
 
 // FORM HANDLERS
+document.getElementById('campaign-form').onsubmit = (e) => {
+    e.preventDefault();
+    fetch('/api/campaign/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:document.getElementById('c_name').value, owner_id:document.getElementById('c_owner').value}) }).then(() => location.reload());
+};
+document.getElementById('sprint-form').onsubmit = (e) => {
+    e.preventDefault();
+    fetch('/api/sprint/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({campaign_id:activeCampId, name:document.getElementById('s_name').value}) }).then(() => { bootstrap.Modal.getInstance(document.getElementById('sprint-modal')).hide(); fetchSprints(); });
+};
 document.getElementById('task-form').onsubmit = (e) => {
     e.preventDefault();
     const data = { id: document.getElementById('t_id').value, sprint_id: activeSprintId, name: document.getElementById('t_name').value, start_date: document.getElementById('t_start').value, duration_days: document.getElementById('t_dur').value, comments: document.getElementById('t_comments').value, group_ids: Array.from(document.querySelectorAll('.g-chk:checked')).map(cb => cb.value), user_ids: Array.from(document.querySelectorAll('.u-chk:checked')).map(cb => cb.value) };
