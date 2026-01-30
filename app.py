@@ -294,7 +294,6 @@ def fetch_single_task(tid):
     })
 
 
-# --- NEW: DELETE TASK ROUTE ---
 @app.route('/api/task/delete', methods=['POST'])
 def delete_task():
     t = db.session.get(Task, request.json['id'])
@@ -442,6 +441,7 @@ def dl_fl(fid): tf = db.session.get(TaskFile, fid); return send_from_directory(U
 def camp_prog(): return jsonify({c.id: c.get_progress() for c in MasterCampaign.query.all()})
 
 
+# --- GANTT CHART DATA (FIXED AGGREGATION) ---
 @app.route('/api/gantt_data/<string:dtype>/<int:oid>')
 def get_gantt_data(dtype, oid):
     rows = []
@@ -449,29 +449,43 @@ def get_gantt_data(dtype, oid):
     def fmt(d):
         return d.isoformat() if d else None
 
-    def get_viz_end(start, days):
-        return add_business_days(start, days).isoformat()
-
     if dtype == 'all':
         for c in MasterCampaign.query.all():
-            start = datetime.today().date()
-            rows.append(
-                [f'CAMP_{c.id}', c.name, 'Strategy', fmt(start), get_viz_end(start, 30), None, c.get_progress(), None])
+            # NEW: Aggregate actual dates
+            all_starts = []
+            all_ends = []
+            for s in c.sprints:
+                for t in s.tasks:
+                    if t.start_date:
+                        all_starts.append(t.start_date)
+                        all_ends.append(t.end_date)
+
+            if all_starts:
+                start = min(all_starts)
+                end = max(all_ends)
+                rows.append([f'CAMP_{c.id}', c.name, 'Strategy', fmt(start), fmt(end), None, c.get_progress(), None])
+            else:
+                # Placeholder for empty campaigns
+                s = datetime.today().date()
+                rows.append([f'CAMP_{c.id}', c.name, 'Strategy', fmt(s), fmt(add_business_days(s, 1)), None, 0, None])
+
     elif dtype == 'campaign':
         c = db.session.get(MasterCampaign, oid)
         if c:
             for s in c.sprints:
-                tasks = s.tasks
-                if tasks:
-                    s_dates = [t.start_date for t in tasks if t.start_date]
-                    start_date = min(s_dates) if s_dates else datetime.today().date()
-                    duration = sum([t.duration_days for t in tasks])
+                # NEW: Aggregate actual dates for phases
+                s_starts = [t.start_date for t in s.tasks if t.start_date]
+                s_ends = [t.end_date for t in s.tasks if t.start_date]
+
+                if s_starts:
+                    start = min(s_starts)
+                    end = max(s_ends)
+                    rows.append([f'SPRINT_{s.id}', s.name, 'Phase', fmt(start), fmt(end), None, s.get_progress(), None])
                 else:
-                    start_date = datetime.today().date();
-                    duration = 7
-                rows.append(
-                    [f'SPRINT_{s.id}', s.name, 'Phase', fmt(start_date), get_viz_end(start_date, duration), None,
-                     s.get_progress(), None])
+                    s = datetime.today().date()
+                    rows.append(
+                        [f'SPRINT_{s.id}', s.name, 'Phase', fmt(s), fmt(add_business_days(s, 1)), None, 0, None])
+
     elif dtype == 'sprint':
         s = db.session.get(Sprint, oid)
         if s:

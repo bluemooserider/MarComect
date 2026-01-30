@@ -98,7 +98,6 @@ window.openTaskModal = function(tid = null) {
     document.getElementById('link-list').innerHTML = ''; document.getElementById('file-list').innerHTML = '';
     document.querySelectorAll('.g-chk, .u-chk').forEach(c => c.checked = false);
 
-    // TOGGLE DELETE BUTTON VISIBILITY
     const delBtn = document.getElementById('btn-delete-task');
     if (tid) delBtn.classList.remove('d-none');
     else delBtn.classList.add('d-none');
