@@ -7,23 +7,35 @@
     .progress-micro-bar { height: 100%; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
     .asset-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; }
     #gantt_chart_div { width: 100%; min-height: 400px; cursor: pointer; }
+    .campaign-item:hover .action-icons { opacity: 1 !important; }
+    .action-icons { opacity: 0; transition: opacity 0.2s; }
+    .campaign-item-active { background-color: #eff6ff !important; border-left: 4px solid var(--brand-blue) !important; }
 </style>
 
 <div class="row g-4">
     <div class="col-md-3">
         <div class="card border-0 shadow-sm p-3 bg-white" style="border-radius: 16px;">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-bold text-muted small m-0 uppercase">STRATEGIES</h6>
+                <h6 class="fw-bold text-primary small m-0 uppercase">STRATEGIES</h6>
                 <div class="d-flex gap-2">
                     <button class="btn btn-outline-secondary btn-sm rounded-pill" onclick="openGanttModal('all', 0)"><i class="bi bi-calendar3"></i></button>
                     <button class="btn btn-primary btn-sm rounded-circle shadow-sm" onclick="openCampaignModal()"><i class="bi bi-plus-lg"></i></button>
                 </div>
             </div>
-            <div class="list-group list-group-flush">
+            <div class="list-group list-group-flush" id="campaign-list">
                 {% for c in campaigns %}
-                <div class="list-group-item list-group-item-action border-0 rounded-3 mb-2 p-3 campaign-item" onclick="loadSprints({{ c.id }}, this)" style="cursor:pointer; background: #f8fafc;">
-                    <div class="fw-bold text-dark">{{ c.name }}</div>
-                    <div class="progress-micro"><div class="progress-micro-bar bg-primary" id="camp-prog-{{ c.id }}" style="width: {{ c.get_progress() }}%"></div></div>
+                <div class="list-group-item list-group-item-action border-0 rounded-3 mb-2 p-3 campaign-item d-flex justify-content-between align-items-start" onclick="loadSprints({{ c.id }}, this)" style="cursor:pointer; background: #f8fafc;">
+                    <div class="w-100 me-2">
+                        <div class="fw-bold text-dark">{{ c.name }}</div>
+                        <div class="progress-micro"><div class="progress-micro-bar bg-primary" id="camp-prog-{{ c.id }}" style="width: {{ c.get_progress() }}%"></div></div>
+                    </div>
+                    <div class="action-icons d-flex gap-2 bg-transparent ps-1 align-items-center">
+                        <i class="bi bi-pencil-square text-primary" title="Edit Strategy" onclick="event.stopPropagation(); openCampaignModal({{ c.id }}, '{{ c.name }}', {{ c.owner_id }})"></i>
+                        <i class="bi bi-files text-secondary" title="Clone Strategy" onclick="event.stopPropagation(); cloneCampaign({{ c.id }})"></i>
+                        {% if session.get('role') == 'admin' %}
+                        <i class="bi bi-trash text-danger" title="Delete Strategy" onclick="event.stopPropagation(); deleteCampaign({{ c.id }})"></i>
+                        {% endif %}
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -35,18 +47,21 @@
             <div class="card-header bg-white border-0 py-4 px-4 d-flex justify-content-between align-items-center">
                 <h4 class="fw-bold m-0 text-dark">Strategic Phases</h4>
                 <div id="campaign-actions" class="d-none">
-                    <button class="btn btn-outline-info btn-sm rounded-pill me-2 px-3" onclick="openGanttModal('campaign', activeCampId)"><i class="bi bi-calendar3 me-2"></i>Phase Gantt</button>
-                    <button class="btn btn-dark btn-sm rounded-pill px-3" onclick="openSprintModal()"><i class="bi bi-plus-lg me-2"></i>Add Phase</button>
+                    <button class="btn btn-outline-primary btn-sm rounded-pill me-2 px-3" onclick="openGanttModal('campaign', activeCampId)"><i class="bi bi-calendar3 me-2"></i>Gantt View</button>
+                    <button class="btn btn-dark btn-sm rounded-pill px-3 shadow-sm" onclick="openSprintModal()"><i class="bi bi-plus-lg me-2"></i>Add Phase</button>
                 </div>
             </div>
-            <div class="card-body px-4 pb-4" id="sprint-grid"></div>
+            <div class="card-body px-4 pb-4" id="sprint-grid">
+                <p class="text-center py-5 text-muted">Select a strategy from the sidebar to view its roadmap.</p>
+            </div>
         </div>
+
         <div id="roadmap-panel" class="card border-0 shadow-sm d-none" style="border-radius: 16px; overflow: hidden;">
-            <div class="card-header bg-primary text-white py-3 px-4 d-flex justify-content-between align-items-center border-0">
-                <h6 class="fw-bold m-0 small uppercase">Roadmap: <span id="active-sprint-name" class="fw-light"></span></h6>
+            <div class="card-header bg-brand text-white py-3 px-4 d-flex justify-content-between align-items-center border-0">
+                <h6 class="fw-bold m-0 small uppercase">Phase Details: <span id="active-sprint-name" class="fw-light"></span></h6>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-light btn-sm fw-bold shadow-sm rounded-pill px-3" onclick="openGanttModal('sprint', activeSprintId)"><i class="bi bi-calendar3 me-2"></i>Roadmap Gantt</button>
-                    <button class="btn btn-light btn-sm fw-bold shadow-sm rounded-pill px-3" onclick="openTaskModal()">+ Add Action</button>
+                    <button class="btn btn-light btn-sm fw-bold shadow-sm rounded-pill px-3 text-primary" onclick="openGanttModal('sprint', activeSprintId)"><i class="bi bi-calendar3 me-2"></i>Gantt</button>
+                    <button class="btn btn-light btn-sm fw-bold shadow-sm rounded-pill px-3 text-primary" onclick="openTaskModal()">+ Add Action</button>
                 </div>
             </div>
             <div class="card-body p-0" id="task-container"></div>
@@ -54,226 +69,152 @@
     </div>
 </div>
 
-<div class="modal fade" id="campaign-modal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
-        <div class="modal-body p-4">
-            <h5 class="fw-bold mb-3 text-primary">New Master Strategy</h5>
-            <form id="campaign-form">
-                <input type="text" id="c_name" class="form-control mb-3" placeholder="Strategy Title" required>
-                <select id="c_owner" class="form-select mb-3">
-                    {% for u in users %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}
-                </select>
-                <button type="submit" class="btn btn-primary w-100">Save Strategy</button>
-            </form>
-        </div>
-    </div></div>
-</div>
+<div class="modal fade" id="password-modal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;"><div class="modal-body p-4"><h5 class="fw-bold mb-3">Change Password</h5><form id="password-form"><input type="password" id="pw-current" class="form-control mb-3" placeholder="Current Password" required><input type="password" id="pw-new" class="form-control mb-3" placeholder="New Password" required><button type="submit" class="btn btn-primary w-100 fw-bold">Update Password</button></form></div></div></div></div>
 
-<div class="modal fade" id="sprint-modal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow" style="border-radius: 20px;"><div class="modal-body p-4">
-    <h5 class="fw-bold mb-3 text-primary">Add Roadmap Phase</h5>
-    <form id="sprint-form"><input type="text" id="s_name" class="form-control mb-3" placeholder="Phase Name" required><button type="submit" class="btn btn-primary w-100">Create Phase</button></form>
-    </div></div></div>
-</div>
+<div class="modal fade" id="task-modal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;"><div class="modal-header border-0 pb-0 pt-4 px-4"><h5 class="fw-bold m-0 text-primary">Action Details</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-4"><form id="task-form"><input type="hidden" id="t_id"><div class="row g-3"><div class="col-md-7"><input type="text" id="t_name" class="form-control mb-3 shadow-none fw-bold" placeholder="Task Title" required><div class="row g-2 mb-3"><div class="col"><label class="small fw-bold text-muted">START DATE</label><input type="date" id="t_start" class="form-control shadow-none"></div><div class="col"><label class="small fw-bold text-muted">DURATION (DAYS)</label><input type="number" id="t_dur" class="form-control shadow-none" value="1" required></div></div><div class="mb-3 p-3 bg-light border rounded"><label class="small fw-bold text-primary mb-2">REQUIRED PREDECESSORS</label><div id="dependency-list" class="overflow-auto" style="max-height: 100px;"></div><small class="text-muted" style="font-size: 0.75rem">* Start date will automatically update to follow selected tasks.</small></div><textarea id="t_comments" class="form-control mb-3 shadow-none" rows="3" placeholder="Strategic background and notes..."></textarea><div class="p-3 border rounded bg-light"><label class="small fw-bold text-primary mb-2">RESOURCES & ASSETS</label><div id="link-list" class="mb-2"></div><div id="file-list" class="mb-3"></div><div class="input-group input-group-sm mb-2"><input type="text" id="new-link" class="form-control" placeholder="Add URL..."><button class="btn btn-dark" type="button" onclick="addLink()">Link</button></div><div class="input-group input-group-sm"><input type="file" id="new-file" class="form-control"><button class="btn btn-dark" type="button" onclick="uploadFile()">Upload</button></div></div></div><div class="col-md-5 border-start"><label class="small fw-bold text-primary mb-2">TEAM ASSIGNMENTS</label><div id="modal-groups" class="mb-3 overflow-auto" style="max-height: 150px;"></div><hr><label class="small fw-bold text-primary mb-2">LEAD ASSIGNMENTS</label><div id="modal-users" class="overflow-auto" style="max-height: 150px;"></div></div></div>
+    <div class="d-flex justify-content-between mt-4">
+        <button type="button" class="btn btn-outline-danger" id="btn-delete-task" onclick="deleteTask()">Delete Action</button>
+        <button type="submit" class="btn btn-primary shadow-sm py-2 fw-bold px-5">Save Changes</button>
+    </div>
+</form></div></div></div></div>
 
-<div class="modal fade" id="task-modal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
-        <div class="modal-header border-0 pb-0 pt-4 px-4"><h5 class="fw-bold m-0">Action Item Details</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body p-4">
-            <form id="task-form">
-                <input type="hidden" id="t_id">
-                <div class="row g-3">
-                    <div class="col-md-7">
-                        <input type="text" id="t_name" class="form-control mb-3 shadow-none" placeholder="Task Title" required>
-                        <div class="row g-2 mb-3">
-                            <div class="col"><label class="small fw-bold text-muted">START</label><input type="date" id="t_start" class="form-control shadow-none" required></div>
-                            <div class="col"><label class="small fw-bold text-muted">DAYS</label><input type="number" id="t_dur" class="form-control shadow-none" value="1" required></div>
-                        </div>
-                        <textarea id="t_comments" class="form-control mb-3 shadow-none" rows="3" placeholder="Strategic Notes"></textarea>
-
-                        <div class="p-3 border rounded bg-light">
-                            <label class="small fw-bold text-primary mb-2">RESOURCES & FILES</label>
-                            <div id="link-list" class="mb-2"></div><div id="file-list" class="mb-3"></div>
-                            <div class="input-group input-group-sm mb-2"><input type="text" id="new-link" class="form-control" placeholder="URL..."><button class="btn btn-dark" type="button" onclick="addLink()">Link</button></div>
-                            <div class="input-group input-group-sm"><input type="file" id="new-file" class="form-control"><button class="btn btn-dark" type="button" onclick="uploadFile()">Upload</button></div>
-                        </div>
-                    </div>
-                    <div class="col-md-5 border-start">
-                        <label class="small fw-bold text-primary mb-2">ASSIGNMENTS</label>
-                        <div id="modal-groups" class="mb-3 overflow-auto" style="max-height: 150px;"></div>
-                        <hr><div id="modal-users" class="overflow-auto" style="max-height: 150px;"></div>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary w-100 mt-4 shadow-sm">Save Changes</button>
-            </form>
-        </div>
-    </div></div>
-</div>
-
-<div class="modal fade" id="gantt-modal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;"><div class="modal-body p-4"><div id="gantt_chart_div" style="min-height: 400px; cursor:pointer;"></div></div></div></div></div>
+<div class="modal fade" id="campaign-modal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;"><div class="modal-body p-4"><h5 class="fw-bold mb-3" id="camp-modal-title">New Strategy</h5><form id="campaign-form"><input type="hidden" id="c_id"><input type="text" id="c_name" class="form-control mb-3" placeholder="Strategy Title" required><select id="c_owner" class="form-select mb-3">{% for u in users %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}</select><button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Save Strategy</button></form></div></div></div></div>
+<div class="modal fade" id="sprint-modal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;"><div class="modal-body p-4"><h5 class="fw-bold mb-3">New Strategic Phase</h5><form id="sprint-form"><input type="text" id="s_name" class="form-control mb-3" placeholder="Phase Name (e.g., Awareness)" required><button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Create Phase</button></form></div></div></div></div>
+<div class="modal fade" id="user-management-modal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;"><div class="modal-header border-0 pt-4 px-4"><h5 class="fw-bold m-0 text-primary">User Management</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-4"><div id="user-list-container" class="mb-4"></div><hr><form id="save-user-form"><input type="hidden" id="admin_u_id"><div class="row g-2 mb-2"><div class="col-md-6"><input type="text" id="admin_u_fname" class="form-control" placeholder="First Name"></div><div class="col-md-6"><input type="text" id="admin_u_lname" class="form-control" placeholder="Last Name"></div></div><div class="row g-2 mb-3"><div class="col-md-6"><input type="email" id="admin_u_email" class="form-control" placeholder="Email" required></div><div class="col-md-6"><input type="password" id="admin_u_pass" class="form-control" placeholder="Reset Password (Optional)"></div></div><div id="admin-user-groups" class="d-flex flex-wrap gap-2 mb-3"></div><button type="submit" class="btn btn-primary w-100 py-2">Save Strategy Account</button></form></div></div></div></div>
+<div class="modal fade" id="team-management-modal" tabindex="-1"><div class="modal-dialog modal-md modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;"><div class="modal-header border-0 pt-4 px-4"><h5 class="fw-bold m-0 text-primary">Team Management</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-4"><div id="team-list-view"><div id="team-list-container" class="mb-4"></div><hr><form id="save-group-form" class="input-group"><input type="hidden" id="admin_g_id"><input type="text" id="admin_g_name" class="form-control" placeholder="New Team Name" required><button type="submit" class="btn btn-dark px-4">Save</button></form></div><div id="team-members-view" class="d-none"><div class="d-flex align-items-center mb-3"><button class="btn btn-sm btn-outline-secondary me-3" onclick="closeMemberView()"><i class="bi bi-arrow-left"></i></button><h6 class="fw-bold m-0 text-dark">Members: <span id="active-team-name" class="text-primary"></span></h6></div><div id="team-member-list" class="mb-3 border rounded p-3 overflow-auto" style="max-height: 300px;"></div><button class="btn btn-primary w-100" onclick="saveTeamMembers()">Save Members</button></div></div></div></div></div>
+<div class="modal fade" id="gantt-modal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content border-0 shadow-lg" style="border-radius: 20px;"><div class="modal-body p-4"><div id="gantt_chart_div"></div></div></div></div></div>
 
 <script>
-let activeCampId = null, activeSprintId = null, allUsers = [], allGroups = [];
+let activeCampId = null, activeSprintId = null, allUsers = [], allGroups = [], currentSprintTasks = [];
+let activeManagingTeamId = null;
 google.charts.load('current', {'packages':['gantt']});
 
-// RE-INIT BOOTSTRAP COMPONENTS
-function openModal(id) {
-    const modalEl = document.getElementById(id);
-    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-    modal.show();
+const showModal = (id) => bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).show();
+const hideModal = (id) => bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).hide();
+
+window.openTaskModal = function(tid = null) {
+    document.getElementById('task-form').reset();
+    document.getElementById('t_id').value = tid || '';
+    document.getElementById('link-list').innerHTML = ''; document.getElementById('file-list').innerHTML = '';
+    document.querySelectorAll('.g-chk, .u-chk').forEach(c => c.checked = false);
+
+    // TOGGLE DELETE BUTTON VISIBILITY
+    const delBtn = document.getElementById('btn-delete-task');
+    if (tid) delBtn.classList.remove('d-none');
+    else delBtn.classList.add('d-none');
+
+    let depHtml = '';
+    currentSprintTasks.forEach(task => {
+        if(task.id !== tid) {
+            depHtml += `<div class="form-check"><input class="form-check-input dep-chk" type="checkbox" value="${task.id}" id="dep_${task.id}"><label class="form-check-label small" for="dep_${task.id}">${task.name}</label></div>`;
+        }
+    });
+    document.getElementById('dependency-list').innerHTML = depHtml || '<small class="text-muted">No other tasks in this phase.</small>';
+
+    if (tid) {
+        fetch(`/api/task/${tid}`).then(r => r.json()).then(t => {
+            activeSprintId = t.sprint_id;
+            document.getElementById('t_name').value = t.name;
+            document.getElementById('t_start').value = t.start_date;
+            document.getElementById('t_dur').value = t.duration_days;
+            document.getElementById('t_comments').value = t.comments;
+            document.querySelectorAll('.g-chk').forEach(cb => cb.checked = t.group_ids.includes(parseInt(cb.value)));
+            updateUserFilter(t.user_ids);
+            if(t.predecessor_ids) t.predecessor_ids.forEach(pid => { const el = document.getElementById(`dep_${pid}`); if(el) el.checked = true; });
+            t.links.forEach(l => document.getElementById('link-list').innerHTML += `<div class="asset-item"><a href="${l.url}" target="_blank" class="text-truncate" style="max-width:90%">${l.url}</a></div>`);
+            t.files.forEach(f => document.getElementById('file-list').innerHTML += `<div class="asset-item"><a href="/task/file/dl/${f.id}">${f.filename}</a></div>`);
+            showModal('task-modal');
+        });
+    } else {
+        if (!activeSprintId) return alert("Select a Phase first.");
+        showModal('task-modal');
+    }
 }
 
-function openCampaignModal() {
-    document.getElementById('campaign-form').reset();
-    openModal('campaign-modal');
-}
-
-function openSprintModal() {
-    document.getElementById('sprint-form').reset();
-    openModal('sprint-modal');
-}
-
-function loadSprints(id, el) {
+const loadSprints = (id, el) => {
     activeCampId = id;
-    document.querySelectorAll('.campaign-item').forEach(i => i.style.background = '#f8fafc');
-    el.style.background = '#eef2ff';
+    document.querySelectorAll('.campaign-item').forEach(i => { i.style.background = '#f8fafc'; i.classList.remove('campaign-item-active'); });
+    el.classList.add('campaign-item-active');
     document.getElementById('campaign-actions').classList.remove('d-none');
     fetchSprints();
 }
 
-function fetchSprints() {
+const fetchSprints = () => {
     fetch(`/api/sprints/${activeCampId}`).then(r => r.json()).then(data => {
         let h = '<div class="row g-3">';
         data.forEach(s => {
-            h += `<div class="col-md-4"><div class="card p-3 border rounded-4 shadow-sm" style="cursor:pointer" onclick="loadTasks(${s.id}, '${s.name}')">
-                <h6 class="fw-bold m-0">${s.name}</h6>
-                <div class="progress-micro"><div class="progress-micro-bar bg-success" style="width: ${s.progress}%"></div></div>
-                <small class="text-muted small mt-1">${s.progress}% complete</small>
-            </div></div>`;
+            const borderClass = s.has_unassigned ? 'border-danger border-2' : 'border';
+            const titleColor = s.has_unassigned ? 'text-danger' : '';
+            h += `<div class="col-md-4"><div class="card p-3 ${borderClass} rounded-4 shadow-sm" style="cursor:pointer" onclick="loadTasks(${s.id}, '${s.name}')"><div class="d-flex justify-content-between align-items-center mb-2"><h6 class="fw-bold m-0 ${titleColor}">${s.name}</h6><span class="badge bg-light text-dark border">${s.date_range}</span></div><div class="progress-micro"><div class="progress-micro-bar bg-primary" style="width: ${s.progress}%"></div></div></div></div>`;
         });
-        document.getElementById('sprint-grid').innerHTML = h + '</div>';
+        document.getElementById('sprint-grid').innerHTML = data.length ? h + '</div>' : '<p class="text-center py-5 opacity-50">No phases added to this strategy.</p>';
     });
 }
 
-function loadTasks(id, name) {
+const loadTasks = (id, name) => {
     activeSprintId = id;
     document.getElementById('roadmap-panel').classList.remove('d-none');
     document.getElementById('active-sprint-name').innerText = name.toUpperCase();
     fetchTasks();
 }
 
-function fetchTasks() {
+const fetchTasks = () => {
     fetch(`/api/tasks/${activeSprintId}`).then(r => r.json()).then(data => {
+        currentSprintTasks = data;
         let h = '<div class="list-group list-group-flush">';
         data.forEach(t => {
-            let icon = t.is_completed ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted';
-            h += `<div class="list-group-item d-flex align-items-center p-4 border-0 border-bottom">
-                <i class="bi ${icon} h5 me-4" style="cursor:pointer" onclick="toggleTask(${t.id})"></i>
-                <div class="flex-grow-1" onclick="openTaskModal(${t.id})" style="cursor:pointer">
-                    <div class="fw-bold ${t.is_completed ? 'text-decoration-line-through opacity-50' : ''}">${t.name}</div>
-                    <small class="text-muted"><i class="bi bi-people me-2"></i>${t.assignee_names}</small>
-                </div>
-            </div>`;
+            const nameColor = t.is_assigned ? 'text-dark' : 'text-danger fw-bold';
+            const statusClass = t.is_completed ? 'text-decoration-line-through opacity-50' : '';
+            h += `<div class="list-group-item d-flex align-items-center p-4 border-0 border-bottom"><i class="bi ${t.is_completed ? 'bi-check-circle-fill text-success':'bi-circle text-muted'} h5 me-4" style="cursor:pointer" onclick="toggleTask(${t.id})"></i><div class="flex-grow-1" onclick="openTaskModal(${t.id})" style="cursor:pointer"><div class="fw-bold ${statusClass} ${nameColor}">${t.name}</div><small class="text-muted">${t.assignee_names}</small></div></div>`;
         });
-        document.getElementById('task-container').innerHTML = h + '</div>';
+        document.getElementById('task-container').innerHTML = h;
         refreshCampaignProgress();
     });
 }
 
-function openTaskModal(tid = null) {
-    document.getElementById('task-form').reset();
-    document.getElementById('t_id').value = tid || '';
-    document.getElementById('link-list').innerHTML = ''; document.getElementById('file-list').innerHTML = '';
-    document.querySelectorAll('.g-chk, .u-chk').forEach(c => c.checked = false);
-    if (tid) {
-        fetch(`/api/task/${tid}`).then(r => r.json()).then(t => {
-            document.getElementById('t_name').value = t.name; document.getElementById('t_start').value = t.start_date;
-            document.getElementById('t_dur').value = t.duration_days; document.getElementById('t_comments').value = t.comments;
-            document.querySelectorAll('.g-chk').forEach(cb => { if(t.group_ids.includes(parseInt(cb.value))) cb.checked = true; });
-            updateUserFilter(t.user_ids);
-            t.links.forEach(l => document.getElementById('link-list').innerHTML += `<div class="asset-item"><a href="${l.url}" target="_blank" class="text-truncate" style="max-width:85%">${l.url}</a><i class="bi bi-x text-danger" style="cursor:pointer" onclick="delLink(${l.id})"></i></div>`);
-            t.files.forEach(f => document.getElementById('file-list').innerHTML += `<div class="asset-item"><a href="/task/file/download/${f.id}">${f.filename}</a><i class="bi bi-x text-danger" style="cursor:pointer" onclick="delFile(${f.id})"></i></div>`);
-        });
+// --- UTILS ---
+window.openUserManagement = () => fetch('/api/users').then(r => r.json()).then(users => { allUsers = users; let h = ''; users.forEach(u => h += `<div class="d-flex justify-content-between p-2 border-bottom align-items-center"><div><strong>${u.display_name}</strong><br><small>${u.email}</small></div><button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="editUser(${u.id})">Edit</button></div>`); document.getElementById('user-list-container').innerHTML = h; renderAdminGroupCheckboxes(); showModal('user-management-modal'); });
+window.openTeamManagement = () => { document.getElementById('team-list-view').classList.remove('d-none'); document.getElementById('team-members-view').classList.add('d-none'); fetch('/api/groups').then(r => r.json()).then(teams => { allGroups = teams; let h = ''; teams.forEach(t => h += `<div class="d-flex justify-content-between p-2 border-bottom align-items-center"><span>${t.name}</span><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark rounded-pill px-3" onclick="manageTeamMembers(${t.id}, '${t.name}')">Members</button><button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="editTeam(${t.id}, '${t.name}')">Edit</button></div></div>`); document.getElementById('team-list-container').innerHTML = h; showModal('team-management-modal'); }); }
+window.manageTeamMembers = (gid, gname) => { activeManagingTeamId = gid; document.getElementById('active-team-name').innerText = gname; document.getElementById('team-list-view').classList.add('d-none'); document.getElementById('team-members-view').classList.remove('d-none'); fetch('/api/users').then(r => r.json()).then(users => { allUsers = users; let h = ''; users.forEach(u => { const isMember = u.group_ids.includes(gid); h += `<div class="form-check border-bottom py-2"><input class="form-check-input team-member-chk" type="checkbox" value="${u.id}" id="tm_${u.id}" ${isMember ? 'checked' : ''}><label class="form-check-label w-100" for="tm_${u.id}" style="cursor:pointer"><span class="fw-bold">${u.display_name}</span> <small class="text-muted ms-2">${u.email}</small></label></div>`; }); document.getElementById('team-member-list').innerHTML = h; }); }
+window.saveTeamMembers = () => { const selectedUids = Array.from(document.querySelectorAll('.team-member-chk:checked')).map(cb => cb.value); fetch('/api/group/members/save', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ group_id: activeManagingTeamId, user_ids: selectedUids })}).then(() => { alert("Team membership updated!"); window.openTeamManagement(); }); }
+window.closeMemberView = () => { document.getElementById('team-members-view').classList.add('d-none'); document.getElementById('team-list-view').classList.remove('d-none'); }
+window.openPasswordModal = () => { document.getElementById('password-form').reset(); showModal('password-modal'); }
+
+const renderAdminGroupCheckboxes = () => { let h = ''; allGroups.forEach(g => h += `<div class="form-check form-check-inline"><input class="form-check-input admin-u-g-chk" type="checkbox" value="${g.id}" id="admg_${g.id}"><label class="form-check-label small" for="admg_${g.id}">${g.name}</label></div>`); document.getElementById('admin-user-groups').innerHTML = h; }
+const editUser = (id) => { const u = allUsers.find(x => x.id === id); document.getElementById('admin_u_id').value = u.id; document.getElementById('admin_u_fname').value = u.first_name || ''; document.getElementById('admin_u_lname').value = u.last_name || ''; document.getElementById('admin_u_email').value = u.email; document.querySelectorAll('.admin-u-g-chk').forEach(c => c.checked = u.group_ids.includes(parseInt(c.value))); }
+const editTeam = (id, n) => { document.getElementById('admin_g_id').value = id; document.getElementById('admin_g_name').value = n; }
+
+// --- ACTIONS ---
+document.getElementById('campaign-form').onsubmit = (e) => { e.preventDefault(); fetch('/api/campaign/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id: document.getElementById('c_id').value, name:document.getElementById('c_name').value, owner_id:document.getElementById('c_owner').value}) }).then(() => location.reload()); };
+document.getElementById('sprint-form').onsubmit = (e) => { e.preventDefault(); if(!activeCampId) return alert("Select Strategy first."); fetch('/api/sprint/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({campaign_id:activeCampId, name:document.getElementById('s_name').value}) }).then(() => { hideModal('sprint-modal'); fetchSprints(); }); };
+document.getElementById('task-form').onsubmit = (e) => { e.preventDefault(); const d = { id: document.getElementById('t_id').value, sprint_id: activeSprintId, name: document.getElementById('t_name').value, start_date: document.getElementById('t_start').value, duration_days: document.getElementById('t_dur').value, comments: document.getElementById('t_comments').value, group_ids: Array.from(document.querySelectorAll('.g-chk:checked')).map(cb => cb.value), user_ids: Array.from(document.querySelectorAll('.u-chk:checked')).map(cb => cb.value), predecessor_ids: Array.from(document.querySelectorAll('.dep-chk:checked')).map(cb => cb.value) }; fetch('/api/task/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(() => { hideModal('task-modal'); fetchTasks(); fetchSprints(); }); };
+document.getElementById('save-user-form').onsubmit = (e) => { e.preventDefault(); const d = { id: document.getElementById('admin_u_id').value, first_name: document.getElementById('admin_u_fname').value, last_name: document.getElementById('admin_u_lname').value, email: document.getElementById('admin_u_email').value, password: document.getElementById('admin_u_pass').value, group_ids: Array.from(document.querySelectorAll('.admin-u-g-chk:checked')).map(cb => cb.value) }; fetch('/api/user/save', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)}).then(() => { hideModal('user-management-modal'); alert("User saved!"); }); }
+document.getElementById('save-group-form').onsubmit = (e) => { e.preventDefault(); fetch('/api/group/save', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:document.getElementById('admin_g_name').value})}).then(() => { hideModal('team-management-modal'); alert("Team saved!"); }); }
+document.getElementById('password-form').onsubmit = (e) => { e.preventDefault(); fetch('/api/user/change_password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({current:document.getElementById('pw-current').value, new:document.getElementById('pw-new').value})}).then(r => r.json()).then(d => { if(d.success) { alert("Password changed!"); hideModal('password-modal'); } else alert(d.message); }); };
+
+// NEW: DELETE TASK FUNCTION
+window.deleteTask = () => {
+    const id = document.getElementById('t_id').value;
+    if(!id) return;
+    if(confirm("Permanently delete this action?")) {
+        fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id}) })
+        .then(() => { hideModal('task-modal'); fetchTasks(); fetchSprints(); });
     }
-    openModal('task-modal');
 }
 
-function addLink() {
-    const tid = document.getElementById('t_id').value;
-    if(!tid) return alert("Save task first.");
-    fetch('/api/task/link/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({task_id: tid, url: document.getElementById('new-link').value})}).then(() => openTaskModal(tid));
-}
+window.deleteCampaign = (id) => { if(confirm("Permanently delete strategy?")) fetch('/api/campaign/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id})}).then(() => location.reload()); }
+window.cloneCampaign = (id) => { if(confirm("Create a copy of this strategy? All tasks will need to be reassigned.")) { fetch('/api/campaign/clone', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id})}).then(r => { if(r.ok) location.reload(); else alert("Error: Could not clone strategy. If you haven't reset your database recently, please delete 'strategy.db' and restart."); }); } }
+const toggleTask = (id) => fetch('/api/task/complete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id})}).then(() => { fetchTasks(); fetchSprints(); });
+const refreshCampaignProgress = () => fetch('/api/progress/camps').then(r => r.json()).then(d => { for(let id in d) { let el = document.getElementById(`camp-prog-${id}`); if(el) el.style.width = d[id] + '%'; } });
+const openCampaignModal = (id = null, name = '', owner = '') => { document.getElementById('campaign-form').reset(); document.getElementById('c_id').value = id || ''; document.getElementById('c_name').value = name; if(owner) document.getElementById('c_owner').value = owner; document.getElementById('camp-modal-title').innerText = id ? "Edit Strategy" : "New Strategy"; showModal('campaign-modal'); }
+const openSprintModal = () => { document.getElementById('sprint-form').reset(); showModal('sprint-modal'); }
+const addLink = () => { const tid = document.getElementById('t_id').value; if(!tid) return alert("Save task first."); fetch('/api/task/link/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({task_id: tid, url: document.getElementById('new-link').value})}).then(() => window.openTaskModal(tid)); }
+const uploadFile = () => { const tid = document.getElementById('t_id').value; const f = document.getElementById('new-file').files[0]; if(!tid || !f) return alert("Select file first."); const fd = new FormData(); fd.append('file', f); fd.append('task_id', tid); fetch('/api/task/file/upload', {method:'POST', body:fd}).then(() => window.openTaskModal(tid)); }
 
-function uploadFile() {
-    const tid = document.getElementById('t_id').value;
-    const f = document.getElementById('new-file').files[0];
-    if(!tid || !f) return alert("Save task and select file.");
-    const fd = new FormData(); fd.append('file', f); fd.append('task_id', tid);
-    fetch('/api/task/file/upload', {method:'POST', body:fd}).then(() => openTaskModal(tid));
-}
+const updateUserFilter = (selectedUsers = []) => { const selectedGids = Array.from(document.querySelectorAll('.g-chk:checked')).map(cb => parseInt(cb.value)); const container = document.getElementById('modal-users'); container.innerHTML = ''; allUsers.filter(u => u.group_ids.some(gid => selectedGids.includes(gid))).forEach(u => { const ck = selectedUsers.includes(u.id) ? 'checked' : ''; container.innerHTML += `<div class="form-check"><input class="form-check-input u-chk" type="checkbox" value="${u.id}" ${ck}><label class="form-check-label small">${u.display_name}</label></div>`; }); }
 
-function delLink(id) { fetch('/api/task/link/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id})}).then(() => openTaskModal(document.getElementById('t_id').value)); }
-function delFile(id) { fetch('/api/task/file/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id})}).then(() => openTaskModal(document.getElementById('t_id').value)); }
+function openGanttModal(type, id) { showModal('gantt-modal'); document.getElementById('gantt-modal').addEventListener('shown.bs.modal', () => { fetch(`/api/gantt_data/${type}/${id}`).then(r => r.json()).then(data => { if (!data.tasks || data.tasks.length === 0) { document.getElementById('gantt_chart_div').innerHTML = '<p class="text-center p-5 text-muted">No data available to display.</p>'; return; } const dt = new google.visualization.DataTable(); dt.addColumn('string', 'ID'); dt.addColumn('string', 'Name'); dt.addColumn('string', 'Res'); dt.addColumn('date', 'Start'); dt.addColumn('date', 'End'); dt.addColumn('number', 'Dur'); dt.addColumn('number', 'Pct'); dt.addColumn('string', 'Dep'); const rows = data.tasks.map(r => [r[0], r[1], r[2], new Date(r[3]), new Date(r[4]), r[5], r[6], r[7]]); dt.addRows(rows); const chart = new google.visualization.Gantt(document.getElementById('gantt_chart_div')); google.visualization.events.addListener(chart, 'select', () => { const sel = chart.getSelection(); if (sel.length > 0) { const row = sel[0].row; const fullId = dt.getValue(row, 0); const tp = fullId.split('_')[0]; const rid = fullId.split('_')[1]; hideModal('gantt-modal'); if (tp === 'TASK') window.openTaskModal(rid); else if (tp === 'SPRINT') loadTasks(rid, dt.getValue(row, 1)); } }); chart.draw(dt, { height: rows.length * 45 + 100, gantt: { trackHeight: 45, barHeight: 30 } }); }); }, { once: true }); }
 
-function openGanttModal(type, id) {
-    openModal('gantt-modal');
-    document.getElementById('gantt-modal').addEventListener('shown.bs.modal', function () {
-        fetch(`/api/gantt_data/${type}/${id}`).then(r => r.json()).then(data => {
-            if (!data.tasks.length) return;
-            const dt = new google.visualization.DataTable();
-            dt.addColumn('string', 'ID'); dt.addColumn('string', 'Name'); dt.addColumn('string', 'Res');
-            dt.addColumn('date', 'Start'); dt.addColumn('date', 'End'); dt.addColumn('number', 'Dur');
-            dt.addColumn('number', 'Pct'); dt.addColumn('string', 'Dep');
-            const rows = data.tasks.map(r => [r[0], r[1], r[2], new Date(r[3]), new Date(r[4]), r[5], r[6], r[7]]);
-            dt.addRows(rows);
-            const chart = new google.visualization.Gantt(document.getElementById('gantt_chart_div'));
-            google.visualization.events.addListener(chart, 'select', function() {
-                const sel = chart.getSelection();
-                if (sel.length > 0) {
-                    const row = sel[0].row; const fullId = dt.getValue(row, 0); const itemType = fullId.split('_')[0]; const realId = fullId.split('_')[1];
-                    bootstrap.Modal.getInstance(document.getElementById('gantt-modal')).hide();
-                    if (itemType === 'TASK') openTaskModal(realId);
-                    else if (itemType === 'SPRINT') loadTasks(realId, dt.getValue(row, 1));
-                }
-            });
-            chart.draw(dt, { height: rows.length * 45 + 100, gantt: { trackHeight: 45, barHeight: 30 } });
-        });
-    }, { once: true });
-}
-
-function toggleTask(id) { fetch('/api/task/complete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id})}).then(() => { fetchTasks(); fetchSprints(); }); }
-function refreshCampaignProgress() { fetch('/api/progress/campaigns').then(r => r.json()).then(d => { for(let id in d) { let el = document.getElementById(`camp-prog-${id}`); if(el) el.style.width = d[id] + '%'; } }); }
-
-function updateUserFilter(selectedUsers = []) {
-    const sgs = Array.from(document.querySelectorAll('.g-chk:checked')).map(cb => parseInt(cb.value));
-    const uc = document.getElementById('modal-users'); uc.innerHTML = '';
-    allUsers.filter(u => u.group_ids.some(gid => sgs.includes(gid))).forEach(u => {
-        const ck = selectedUsers.includes(u.id) ? 'checked' : '';
-        uc.innerHTML += `<div class="form-check"><input class="form-check-input u-chk" type="checkbox" value="${u.id}" ${ck}><label class="form-check-label small">${u.display_name}</label></div>`;
-    });
-}
-
-// FORM HANDLERS
-document.getElementById('campaign-form').onsubmit = (e) => {
-    e.preventDefault();
-    fetch('/api/campaign/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:document.getElementById('c_name').value, owner_id:document.getElementById('c_owner').value}) }).then(() => location.reload());
-};
-document.getElementById('sprint-form').onsubmit = (e) => {
-    e.preventDefault();
-    fetch('/api/sprint/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({campaign_id:activeCampId, name:document.getElementById('s_name').value}) }).then(() => { bootstrap.Modal.getInstance(document.getElementById('sprint-modal')).hide(); fetchSprints(); });
-};
-document.getElementById('task-form').onsubmit = (e) => {
-    e.preventDefault();
-    const data = { id: document.getElementById('t_id').value, sprint_id: activeSprintId, name: document.getElementById('t_name').value, start_date: document.getElementById('t_start').value, duration_days: document.getElementById('t_dur').value, comments: document.getElementById('t_comments').value, group_ids: Array.from(document.querySelectorAll('.g-chk:checked')).map(cb => cb.value), user_ids: Array.from(document.querySelectorAll('.u-chk:checked')).map(cb => cb.value) };
-    fetch('/api/task/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(() => { bootstrap.Modal.getInstance(document.getElementById('task-modal')).hide(); fetchTasks(); fetchSprints(); });
-};
-
-document.addEventListener('DOMContentLoaded', () => {
-    fetch('/api/users').then(r => r.json()).then(d => allUsers = d);
-    fetch('/api/groups').then(r => r.json()).then(d => {
-        allGroups = d; const gc = document.getElementById('modal-groups');
-        d.forEach(g => { gc.innerHTML += `<div class="form-check"><input class="form-check-input g-chk" type="checkbox" value="${g.id}" onchange="updateUserFilter()"><label class="form-check-label small">${g.name}</label></div>`; });
-    });
-});
+document.addEventListener('DOMContentLoaded', () => { fetch('/api/users').then(r => r.json()).then(d => allUsers = d); fetch('/api/groups').then(r => r.json()).then(d => { allGroups = d; const gc = document.getElementById('modal-groups'); d.forEach(g => gc.innerHTML += `<div class="form-check"><input class="form-check-input g-chk" type="checkbox" value="${g.id}" onchange="updateUserFilter()"><label class="form-check-label small">${g.name}</label></div>`); }); });
 </script>
 {% endblock %}
